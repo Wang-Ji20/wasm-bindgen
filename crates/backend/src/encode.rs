@@ -236,7 +236,7 @@ fn shared_enum<'a>(e: &'a ast::Enum, intern: &'a Interner) -> Enum<'a> {
 fn shared_variant<'a>(v: &'a ast::Variant, intern: &'a Interner) -> EnumVariant<'a> {
     EnumVariant {
         name: intern.intern(&v.name),
-        value: v.value,
+        value: v.discriminant,
         comments: v.comments.iter().map(|s| &**s).collect(),
     }
 }
@@ -343,7 +343,7 @@ fn shared_struct<'a>(s: &'a ast::Struct, intern: &'a Interner) -> Struct<'a> {
     }
 }
 
-fn shared_struct_field<'a>(s: &'a ast::StructField, _intern: &'a Interner) -> StructField<'a> {
+fn shared_struct_field<'a>(s: &'a ast::Field, _intern: &'a Interner) -> StructField<'a> {
     StructField {
         name: &s.js_name,
         readonly: s.readonly,

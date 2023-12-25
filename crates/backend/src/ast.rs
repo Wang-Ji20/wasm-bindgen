@@ -359,7 +359,7 @@ pub struct Struct {
     /// The name of the struct in JS code
     pub js_name: String,
     /// All the fields of this struct to export
-    pub fields: Vec<StructField>,
+    pub fields: Vec<Field>,
     /// The doc comments on this struct, if provided
     pub comments: Vec<String>,
     /// Whether this struct is inspectable (provides toJSON/toString properties to JS)
@@ -373,7 +373,7 @@ pub struct Struct {
 /// The field of a struct
 #[cfg_attr(feature = "extra-traits", derive(Debug))]
 #[derive(Clone)]
-pub struct StructField {
+pub struct Field {
     /// The name of the field in Rust code
     pub rust_name: syn::Member,
     /// The name of the field in JS code
@@ -430,8 +430,10 @@ pub struct Enum {
 pub struct Variant {
     /// The name of this variant
     pub name: Ident,
-    /// The backing value of this variant
-    pub value: u32,
+    /// The fields of this variant
+    pub fields: Vec<Field>,
+    /// The discriminant of this variant
+    pub discriminant: u32,
     /// The doc comments on this variant, if any
     pub comments: Vec<String>,
 }

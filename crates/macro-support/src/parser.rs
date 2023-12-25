@@ -394,6 +394,73 @@ trait ConvertToAst<Ctx> {
     fn convert(self, context: Ctx) -> Result<Self::Target, Diagnostic>;
 }
 
+/// Extract useful information from language constructs like:
+/// ```rust
+/// enum A {
+///     // here
+/// }
+/// ```
+///
+/// or
+///
+/// ```rust
+/// struct B {
+///     // here
+/// }
+/// ```
+fn get_fields(
+    syn_fields: &mut syn::Fields,
+    attrs: &BindgenAttrs,
+    wasm_bindgen: syn::Path,
+    struct_name: syn::Ident,
+    js_name: &str,
+) -> Result<Vec<ast::Field>, Diagnostic> {
+    let mut fields = Vec::new();
+    let getter_with_clone = attrs.getter_with_clone();
+    for (i, field) in syn_fields.iter_mut().enumerate() {
+        match field.vis {
+            syn::Visibility::Public(..) => {}
+            _ => continue,
+        }
+        let (js_field_name, member) = match &field.ident {
+            Some(ident) => (ident.unraw().to_string(), syn::Member::Named(ident.clone())),
+            None => (i.to_string(), syn::Member::Unnamed(i.into())),
+        };
+
+        let attrs = BindgenAttrs::find(&mut field.attrs)?;
+        if attrs.skip().is_some() {
+            attrs.check_used();
+            continue;
+        }
+
+        let js_field_name = match attrs.js_name() {
+            Some((name, _)) => name.to_string(),
+            None => js_field_name,
+        };
+
+        let comments = extract_doc_comments(&field.attrs);
+        let getter = shared::struct_field_get(&js_name, &js_field_name);
+        let setter = shared::struct_field_set(&js_name, &js_field_name);
+
+        fields.push(ast::Field {
+            rust_name: member,
+            js_name: js_field_name,
+            struct_name: struct_name.clone(),
+            readonly: attrs.readonly().is_some(),
+            ty: field.ty.clone(),
+            getter: Ident::new(&getter, Span::call_site()),
+            setter: Ident::new(&setter, Span::call_site()),
+            comments,
+            generate_typescript: attrs.skip_typescript().is_none(),
+            generate_jsdoc: attrs.skip_jsdoc().is_none(),
+            getter_with_clone: attrs.getter_with_clone().or(getter_with_clone).copied(),
+            wasm_bindgen: wasm_bindgen.clone(),
+        });
+        attrs.check_used();
+    }
+    Ok(fields)
+}
+
 impl<'a> ConvertToAst<(&ast::Program, BindgenAttrs)> for &'a mut syn::ItemStruct {
     type Target = ast::Struct;
 
@@ -408,57 +475,23 @@ impl<'a> ConvertToAst<(&ast::Program, BindgenAttrs)> for &'a mut syn::ItemStruct
                  type parameters currently"
             );
         }
-        let mut fields = Vec::new();
+
         let js_name = attrs
             .js_name()
             .map(|s| s.0.to_string())
             .unwrap_or(self.ident.to_string());
         let is_inspectable = attrs.inspectable().is_some();
-        let getter_with_clone = attrs.getter_with_clone();
-        for (i, field) in self.fields.iter_mut().enumerate() {
-            match field.vis {
-                syn::Visibility::Public(..) => {}
-                _ => continue,
-            }
-            let (js_field_name, member) = match &field.ident {
-                Some(ident) => (ident.unraw().to_string(), syn::Member::Named(ident.clone())),
-                None => (i.to_string(), syn::Member::Unnamed(i.into())),
-            };
-
-            let attrs = BindgenAttrs::find(&mut field.attrs)?;
-            if attrs.skip().is_some() {
-                attrs.check_used();
-                continue;
-            }
-
-            let js_field_name = match attrs.js_name() {
-                Some((name, _)) => name.to_string(),
-                None => js_field_name,
-            };
-
-            let comments = extract_doc_comments(&field.attrs);
-            let getter = shared::struct_field_get(&js_name, &js_field_name);
-            let setter = shared::struct_field_set(&js_name, &js_field_name);
-
-            fields.push(ast::StructField {
-                rust_name: member,
-                js_name: js_field_name,
-                struct_name: self.ident.clone(),
-                readonly: attrs.readonly().is_some(),
-                ty: field.ty.clone(),
-                getter: Ident::new(&getter, Span::call_site()),
-                setter: Ident::new(&setter, Span::call_site()),
-                comments,
-                generate_typescript: attrs.skip_typescript().is_none(),
-                generate_jsdoc: attrs.skip_jsdoc().is_none(),
-                getter_with_clone: attrs.getter_with_clone().or(getter_with_clone).copied(),
-                wasm_bindgen: program.wasm_bindgen.clone(),
-            });
-            attrs.check_used();
-        }
+        let fields = get_fields(
+            &mut self.fields,
+            &attrs,
+            program.wasm_bindgen.clone(),
+            self.ident.clone(),
+            &js_name,
+        )?;
         let generate_typescript = attrs.skip_typescript().is_none();
         let comments: Vec<String> = extract_doc_comments(&self.attrs);
         attrs.check_used();
+
         Ok(ast::Struct {
             rust_name: self.ident.clone(),
             js_name,
@@ -1266,9 +1299,13 @@ impl<'a> MacroParse<(&'a mut TokenStream, BindgenAttrs)> for syn::ItemEnum {
         program: &mut ast::Program,
         (tokens, opts): (&'a mut TokenStream, BindgenAttrs),
     ) -> Result<(), Diagnostic> {
-        if self.variants.is_empty() {
-            bail_span!(self, "cannot export empty enums to JS");
+        if !self.generics.params.is_empty() {
+            bail_span!(
+                self.generics,
+                "enums with #[wasm_bindgen] cannot have lifetime or type parameters currently"
+            );
         }
+
         let generate_typescript = opts.skip_typescript().is_none();
 
         // Check if the first value is a string literal
@@ -1284,11 +1321,8 @@ impl<'a> MacroParse<(&'a mut TokenStream, BindgenAttrs)> for syn::ItemEnum {
         }
         let js_name = opts
             .js_name()
-            .map(|s| s.0)
-            .map_or_else(|| self.ident.to_string(), |s| s.to_string());
-        opts.check_used();
-
-        let has_discriminant = self.variants[0].discriminant.is_some();
+            .map(|s| s.0.to_string())
+            .unwrap_or_else(|| self.ident.to_string());
 
         match self.vis {
             syn::Visibility::Public(_) => {}
@@ -1298,57 +1332,40 @@ impl<'a> MacroParse<(&'a mut TokenStream, BindgenAttrs)> for syn::ItemEnum {
         let variants = self
             .variants
             .iter()
-            .enumerate()
-            .map(|(i, v)| {
-                match v.fields {
-                    syn::Fields::Unit => (),
-                    _ => bail_span!(v.fields, "only C-Style enums allowed with #[wasm_bindgen]"),
-                }
+            .try_fold(
+                (0, vec![]),
+                |(current_discriminant, mut variant_set), variant| {
+                    let mut fields = variant.fields.clone();
+                    let fields = get_fields(
+                        &mut fields,
+                        &opts,
+                        program.wasm_bindgen.clone(),
+                        self.ident.clone(),
+                        &js_name,
+                    )?;
 
-                // Require that everything either has a discriminant or doesn't.
-                // We don't really want to get in the business of emulating how
-                // rustc assigns values to enums.
-                if v.discriminant.is_some() != has_discriminant {
-                    bail_span!(
-                        v,
-                        "must either annotate discriminant of all variants or none"
-                    );
-                }
-
-                let value = match &v.discriminant {
-                    Some((_, expr)) => match get_expr(expr) {
-                        syn::Expr::Lit(syn::ExprLit {
-                            attrs: _,
-                            lit: syn::Lit::Int(int_lit),
-                        }) => match int_lit.base10_digits().parse::<u32>() {
-                            Ok(v) => v,
-                            Err(_) => {
-                                bail_span!(
-                                    int_lit,
-                                    "enums with #[wasm_bindgen] can only support \
-                                 numbers that can be represented as u32"
-                                );
-                            }
+                    let variant = ast::Variant {
+                        name: variant.ident.clone(),
+                        fields,
+                        discriminant: match &variant.discriminant {
+                            None => current_discriminant,
+                            Some((_, expr)) => get_discriminant(expr)?,
                         },
-                        expr => bail_span!(
-                            expr,
-                            "enums with #[wasm_bindgen] may only have \
-                             number literal values",
-                        ),
-                    },
-                    None => i as u32,
-                };
+                        comments: extract_doc_comments(&variant.attrs),
+                    };
+                    Ok::<(u32, Vec<backend::ast::Variant>), Diagnostic>((
+                        variant.discriminant + 1,
+                        {
+                            variant_set.push(variant);
+                            variant_set
+                        },
+                    ))
+                },
+            )?
+            .1;
 
-                let comments = extract_doc_comments(&v.attrs);
-                Ok(ast::Variant {
-                    name: v.ident.clone(),
-                    value,
-                    comments,
-                })
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-
-        let mut values = variants.iter().map(|v| v.value).collect::<Vec<_>>();
+        opts.check_used();
+        let mut values = variants.iter().map(|v| v.discriminant).collect::<Vec<_>>();
         values.sort();
         let hole = values
             .windows(2)
@@ -1378,6 +1395,30 @@ impl<'a> MacroParse<(&'a mut TokenStream, BindgenAttrs)> for syn::ItemEnum {
             wasm_bindgen: program.wasm_bindgen.clone(),
         });
         Ok(())
+    }
+}
+
+fn get_discriminant(expr: &syn::Expr) -> Result<u32, Diagnostic> {
+    match get_expr(expr) {
+        syn::Expr::Lit(syn::ExprLit {
+            attrs: _,
+            lit: syn::Lit::Int(int_lit),
+        }) => match int_lit.base10_digits().parse::<u32>() {
+            Ok(d) => Ok(d),
+            Err(_) => {
+                bail_span!(
+                    int_lit,
+                    "enums with #[wasm_bindgen] can only support \
+                                 discriminants that can be represented as isize"
+                );
+            }
+        },
+        _ => {
+            bail_span!(
+                expr,
+                "enums with #[wasm_bindgen] may only have number literal discriminants"
+            )
+        }
     }
 }
 
