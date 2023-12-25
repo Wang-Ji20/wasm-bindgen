@@ -1030,6 +1030,18 @@ mod gen_CompositionEventInit;
 #[cfg(feature = "CompositionEventInit")]
 pub use gen_CompositionEventInit::*;
 
+#[cfg(feature = "CompressionFormat")]
+#[allow(non_snake_case)]
+mod gen_CompressionFormat;
+#[cfg(feature = "CompressionFormat")]
+pub use gen_CompressionFormat::*;
+
+#[cfg(feature = "CompressionStream")]
+#[allow(non_snake_case)]
+mod gen_CompressionStream;
+#[cfg(feature = "CompressionStream")]
+pub use gen_CompressionStream::*;
+
 #[cfg(feature = "ComputedEffectTiming")]
 #[allow(non_snake_case)]
 mod gen_ComputedEffectTiming;
@@ -1234,30 +1246,6 @@ mod gen_CryptoKeyPair;
 #[cfg(feature = "CryptoKeyPair")]
 pub use gen_CryptoKeyPair::*;
 
-#[cfg(feature = "Csp")]
-#[allow(non_snake_case)]
-mod gen_Csp;
-#[cfg(feature = "Csp")]
-pub use gen_Csp::*;
-
-#[cfg(feature = "CspPolicies")]
-#[allow(non_snake_case)]
-mod gen_CspPolicies;
-#[cfg(feature = "CspPolicies")]
-pub use gen_CspPolicies::*;
-
-#[cfg(feature = "CspReport")]
-#[allow(non_snake_case)]
-mod gen_CspReport;
-#[cfg(feature = "CspReport")]
-pub use gen_CspReport::*;
-
-#[cfg(feature = "CspReportProperties")]
-#[allow(non_snake_case)]
-mod gen_CspReportProperties;
-#[cfg(feature = "CspReportProperties")]
-pub use gen_CspReportProperties::*;
-
 #[cfg(feature = "CssAnimation")]
 #[allow(non_snake_case)]
 mod gen_CssAnimation;
@@ -1443,6 +1431,12 @@ pub use gen_DecoderDoctorNotification::*;
 mod gen_DecoderDoctorNotificationType;
 #[cfg(feature = "DecoderDoctorNotificationType")]
 pub use gen_DecoderDoctorNotificationType::*;
+
+#[cfg(feature = "DecompressionStream")]
+#[allow(non_snake_case)]
+mod gen_DecompressionStream;
+#[cfg(feature = "DecompressionStream")]
+pub use gen_DecompressionStream::*;
 
 #[cfg(feature = "DedicatedWorkerGlobalScope")]
 #[allow(non_snake_case)]
@@ -2265,12 +2259,6 @@ pub use gen_FillMode::*;
 mod gen_FlashClassification;
 #[cfg(feature = "FlashClassification")]
 pub use gen_FlashClassification::*;
-
-#[cfg(feature = "FlexLineGrowthState")]
-#[allow(non_snake_case)]
-mod gen_FlexLineGrowthState;
-#[cfg(feature = "FlexLineGrowthState")]
-pub use gen_FlexLineGrowthState::*;
 
 #[cfg(feature = "FlowControlType")]
 #[allow(non_snake_case)]
@@ -3262,18 +3250,6 @@ mod gen_GpuVertexStepMode;
 #[cfg(feature = "GpuVertexStepMode")]
 pub use gen_GpuVertexStepMode::*;
 
-#[cfg(feature = "GridDeclaration")]
-#[allow(non_snake_case)]
-mod gen_GridDeclaration;
-#[cfg(feature = "GridDeclaration")]
-pub use gen_GridDeclaration::*;
-
-#[cfg(feature = "GridTrackState")]
-#[allow(non_snake_case)]
-mod gen_GridTrackState;
-#[cfg(feature = "GridTrackState")]
-pub use gen_GridTrackState::*;
-
 #[cfg(feature = "GroupedHistoryEventInit")]
 #[allow(non_snake_case)]
 mod gen_GroupedHistoryEventInit;
@@ -4179,12 +4155,6 @@ pub use gen_InputEvent::*;
 mod gen_InputEventInit;
 #[cfg(feature = "InputEventInit")]
 pub use gen_InputEventInit::*;
-
-#[cfg(feature = "InstallTriggerData")]
-#[allow(non_snake_case)]
-mod gen_InstallTriggerData;
-#[cfg(feature = "InstallTriggerData")]
-pub use gen_InstallTriggerData::*;
 
 #[cfg(feature = "IntersectionObserver")]
 #[allow(non_snake_case)]
@@ -6376,12 +6346,6 @@ mod gen_RtcInboundRtpStreamStats;
 #[cfg(feature = "RtcInboundRtpStreamStats")]
 pub use gen_RtcInboundRtpStreamStats::*;
 
-#[cfg(feature = "RtcLifecycleEvent")]
-#[allow(non_snake_case)]
-mod gen_RtcLifecycleEvent;
-#[cfg(feature = "RtcLifecycleEvent")]
-pub use gen_RtcLifecycleEvent::*;
-
 #[cfg(feature = "RtcMediaStreamStats")]
 #[allow(non_snake_case)]
 mod gen_RtcMediaStreamStats;
@@ -6448,6 +6412,18 @@ mod gen_RtcRtcpParameters;
 #[cfg(feature = "RtcRtcpParameters")]
 pub use gen_RtcRtcpParameters::*;
 
+#[cfg(feature = "RtcRtpCapabilities")]
+#[allow(non_snake_case)]
+mod gen_RtcRtpCapabilities;
+#[cfg(feature = "RtcRtpCapabilities")]
+pub use gen_RtcRtpCapabilities::*;
+
+#[cfg(feature = "RtcRtpCodecCapability")]
+#[allow(non_snake_case)]
+mod gen_RtcRtpCodecCapability;
+#[cfg(feature = "RtcRtpCodecCapability")]
+pub use gen_RtcRtpCodecCapability::*;
+
 #[cfg(feature = "RtcRtpCodecParameters")]
 #[allow(non_snake_case)]
 mod gen_RtcRtpCodecParameters;
@@ -6465,6 +6441,12 @@ pub use gen_RtcRtpContributingSource::*;
 mod gen_RtcRtpEncodingParameters;
 #[cfg(feature = "RtcRtpEncodingParameters")]
 pub use gen_RtcRtpEncodingParameters::*;
+
+#[cfg(feature = "RtcRtpHeaderExtensionCapability")]
+#[allow(non_snake_case)]
+mod gen_RtcRtpHeaderExtensionCapability;
+#[cfg(feature = "RtcRtpHeaderExtensionCapability")]
+pub use gen_RtcRtpHeaderExtensionCapability::*;
 
 #[cfg(feature = "RtcRtpHeaderExtensionParameters")]
 #[allow(non_snake_case)]
@@ -8404,6 +8386,12 @@ mod gen_UsbTransferStatus;
 #[cfg(feature = "UsbTransferStatus")]
 pub use gen_UsbTransferStatus::*;
 
+#[cfg(feature = "UserActivation")]
+#[allow(non_snake_case)]
+mod gen_UserActivation;
+#[cfg(feature = "UserActivation")]
+pub use gen_UserActivation::*;
+
 #[cfg(feature = "UserProximityEvent")]
 #[allow(non_snake_case)]
 mod gen_UserProximityEvent;
@@ -9069,12 +9057,6 @@ pub use gen_WebglLoseContext::*;
 mod gen_WebglMultiDraw;
 #[cfg(feature = "WebglMultiDraw")]
 pub use gen_WebglMultiDraw::*;
-
-#[cfg(feature = "WebrtcGlobalStatisticsReport")]
-#[allow(non_snake_case)]
-mod gen_WebrtcGlobalStatisticsReport;
-#[cfg(feature = "WebrtcGlobalStatisticsReport")]
-pub use gen_WebrtcGlobalStatisticsReport::*;
 
 #[cfg(feature = "WgslLanguageFeatures")]
 #[allow(non_snake_case)]
