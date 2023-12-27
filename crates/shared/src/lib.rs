@@ -114,7 +114,8 @@ macro_rules! shared_api {
 
         struct EnumVariant<'a> {
             name: &'a str,
-            value: u32,
+            discriminant: u32,
+            fields: Vec<Field<'a>>,
             comments: Vec<&'a str>,
         }
 
@@ -129,13 +130,13 @@ macro_rules! shared_api {
 
         struct Struct<'a> {
             name: &'a str,
-            fields: Vec<StructField<'a>>,
+            fields: Vec<Field<'a>>,
             comments: Vec<&'a str>,
             is_inspectable: bool,
             generate_typescript: bool,
         }
 
-        struct StructField<'a> {
+        struct Field<'a> {
             name: &'a str,
             readonly: bool,
             comments: Vec<&'a str>,

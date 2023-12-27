@@ -1409,14 +1409,14 @@ fn get_discriminant(expr: &syn::Expr) -> Result<u32, Diagnostic> {
                 bail_span!(
                     int_lit,
                     "enums with #[wasm_bindgen] can only support \
-                                 discriminants that can be represented as isize"
+                                 discriminants that can be represented as u32"
                 );
             }
         },
         _ => {
             bail_span!(
                 expr,
-                "enums with #[wasm_bindgen] may only have number literal discriminants"
+                "enums with #[wasm_bindgen] cannot mix string and number literal discriminants"
             )
         }
     }

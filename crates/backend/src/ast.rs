@@ -405,7 +405,7 @@ pub struct Field {
 }
 
 /// Information about an Enum being exported
-#[cfg_attr(feature = "extra-traits", derive(Debug, PartialEq, Eq))]
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
 #[derive(Clone)]
 pub struct Enum {
     /// The name of this enum in Rust code
@@ -425,7 +425,7 @@ pub struct Enum {
 }
 
 /// The variant of an enum
-#[cfg_attr(feature = "extra-traits", derive(Debug, PartialEq, Eq))]
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
 #[derive(Clone)]
 pub struct Variant {
     /// The name of this variant

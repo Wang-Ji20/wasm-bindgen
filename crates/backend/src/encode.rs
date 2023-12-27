@@ -236,7 +236,8 @@ fn shared_enum<'a>(e: &'a ast::Enum, intern: &'a Interner) -> Enum<'a> {
 fn shared_variant<'a>(v: &'a ast::Variant, intern: &'a Interner) -> EnumVariant<'a> {
     EnumVariant {
         name: intern.intern(&v.name),
-        value: v.discriminant,
+        discriminant: v.discriminant,
+        fields: shared_fields(&v.fields, intern),
         comments: v.comments.iter().map(|s| &**s).collect(),
     }
 }
@@ -332,19 +333,19 @@ fn shared_import_enum<'a>(_i: &'a ast::ImportEnum, _intern: &'a Interner) -> Imp
 fn shared_struct<'a>(s: &'a ast::Struct, intern: &'a Interner) -> Struct<'a> {
     Struct {
         name: &s.js_name,
-        fields: s
-            .fields
-            .iter()
-            .map(|s| shared_struct_field(s, intern))
-            .collect(),
+        fields: shared_fields(&s.fields, intern),
         comments: s.comments.iter().map(|s| &**s).collect(),
         is_inspectable: s.is_inspectable,
         generate_typescript: s.generate_typescript,
     }
 }
 
-fn shared_struct_field<'a>(s: &'a ast::Field, _intern: &'a Interner) -> StructField<'a> {
-    StructField {
+fn shared_fields<'a>(fields: &'a Vec<ast::Field>, _intern: &'a Interner) -> Vec<Field<'a>> {
+    fields.iter().map(|s| shared_field(s, _intern)).collect()
+}
+
+fn shared_field<'a>(s: &'a ast::Field, _intern: &'a Interner) -> Field<'a> {
+    Field {
         name: &s.js_name,
         readonly: s.readonly,
         comments: s.comments.iter().map(|s| &**s).collect(),

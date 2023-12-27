@@ -1393,16 +1393,9 @@ impl ToTokens for ast::Enum {
         let name_str = self.js_name.to_string();
         let name_len = name_str.len() as u32;
         let name_chars = name_str.chars().map(|c| c as u32);
+        let new_fn = Ident::new(&shared::new_function(&name_str), Span::call_site());
+        let unwrap_fn = Ident::new(&shared::unwrap_function(&name_str), Span::call_site());
         let hole = &self.hole;
-        let cast_clauses = self.variants.iter().map(|variant| {
-            let variant_name = &variant.name;
-            quote! {
-                if js == #enum_name::#variant_name as u32 {
-                    #enum_name::#variant_name
-                }
-            }
-        });
-        let try_from_cast_clauses = cast_clauses.clone();
         let wasm_bindgen = &self.wasm_bindgen;
         (quote! {
             #[automatically_derived]
@@ -1411,7 +1404,9 @@ impl ToTokens for ast::Enum {
 
                 #[inline]
                 fn into_abi(self) -> u32 {
-                    self as u32
+                    use #wasm_bindgen::__rt::std::boxed::Box;
+                    use #wasm_bindgen::__rt::WasmRefCell;
+                    Box::into_raw(Box::new(WasmRefCell::new(self))) as u32
                 }
             }
 
@@ -1421,9 +1416,14 @@ impl ToTokens for ast::Enum {
 
                 #[inline]
                 unsafe fn from_abi(js: u32) -> Self {
-                    #(#cast_clauses else)* {
-                        #wasm_bindgen::throw_str("invalid enum value passed")
-                    }
+                    use #wasm_bindgen::__rt::std::boxed::Box;
+                    use #wasm_bindgen::__rt::{assert_not_null, WasmRefCell};
+
+                    let ptr = js as *mut WasmRefCell<#enum_name>;
+                    assert_not_null(ptr);
+                    let js = Box::from_raw(ptr);
+                    (*js).borrow_mut(); // make sure no one's borrowing
+                    js.into_inner()
                 }
             }
 
@@ -1455,7 +1455,23 @@ impl ToTokens for ast::Enum {
                 #wasm_bindgen::JsValue
             {
                 fn from(value: #enum_name) -> Self {
-                    #wasm_bindgen::JsValue::from_f64((value as u32).into())
+                    let ptr = #wasm_bindgen::convert::IntoWasmAbi::into_abi(value);
+
+                    #[link(wasm_import_module = "__wbindgen_placeholder__")]
+                    #[cfg(all(target_arch = "wasm32", not(any(target_os = "emscripten", target_os = "wasi"))))]
+                    extern "C" {
+                        fn #new_fn(ptr: u32) -> u32;
+                    }
+
+                    #[cfg(not(all(target_arch = "wasm32", not(any(target_os = "emscripten", target_os = "wasi")))))]
+                    unsafe fn #new_fn(_: u32) -> u32 {
+                        panic!("cannot convert to JsValue outside of the wasm target")
+                    }
+
+                    unsafe {
+                        <#wasm_bindgen::JsValue as #wasm_bindgen::convert::FromWasmAbi>
+                            ::from_abi(#new_fn(ptr))
+                    }
                 }
             }
 
@@ -1465,14 +1481,31 @@ impl ToTokens for ast::Enum {
 
                 fn try_from_js_value(value: #wasm_bindgen::JsValue)
                     -> #wasm_bindgen::__rt::std::result::Result<Self, <#enum_name as #wasm_bindgen::convert::TryFromJsValue>::Error> {
-                    use #wasm_bindgen::__rt::core::convert::TryFrom;
-                    let js = f64::try_from(&value)? as u32;
+                    let idx = #wasm_bindgen::convert::IntoWasmAbi::into_abi(&value);
 
-                    #wasm_bindgen::__rt::std::result::Result::Ok(
-                        #(#try_from_cast_clauses else)* {
-                            return #wasm_bindgen::__rt::std::result::Result::Err(value)
+                    #[link(wasm_import_module = "__wbindgen_placeholder__")]
+                    #[cfg(all(target_arch = "wasm32", not(any(target_os = "emscripten", target_os = "wasi"))))]
+                    extern "C" {
+                        fn #unwrap_fn(ptr: u32) -> u32;
+                    }
+
+                    #[cfg(not(all(target_arch = "wasm32", not(any(target_os = "emscripten", target_os = "wasi")))))]
+                    unsafe fn #unwrap_fn(_: u32) -> u32 {
+                        panic!("cannot convert from JsValue outside of the wasm target")
+                    }
+
+                    let ptr = unsafe { #unwrap_fn(idx) };
+                    if ptr == 0 {
+                        #wasm_bindgen::__rt::std::result::Result::Err(value)
+                    } else {
+                        // Don't run `JsValue`'s destructor, `unwrap_fn` already did that for us.
+                        #wasm_bindgen::__rt::std::mem::forget(value);
+                        unsafe {
+                            #wasm_bindgen::__rt::std::result::Result::Ok(
+                                <Self as #wasm_bindgen::convert::FromWasmAbi>::from_abi(ptr)
+                            )
                         }
-                    )
+                    }
                 }
             }
 
@@ -1511,6 +1544,10 @@ impl ToTokens for ast::Enum {
             }
         })
         .to_tokens(into);
+
+        self.variants
+            .iter()
+            .for_each(|v| v.fields.iter().for_each(|f| f.to_tokens(into)));
     }
 }
 
