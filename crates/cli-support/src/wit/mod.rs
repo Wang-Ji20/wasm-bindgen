@@ -842,12 +842,10 @@ impl<'a> Context<'a> {
             variants: enum_
                 .variants
                 .iter()
-                .map(|v| {
-                    (
-                        v.name.to_string(),
-                        v.discriminant,
-                        concatenate_comments(&v.comments),
-                    )
+                .map(|v| AuxVariant {
+                    discriminant: v.discriminant,
+                    fields: None,
+                    name: v.name.to_owned(),
                 })
                 .collect(),
             generate_typescript: enum_.generate_typescript,
@@ -1654,4 +1652,12 @@ fn test_struct_packer() {
     assert_eq!(read_ty(double), 2); // f64, already aligned
     assert_eq!(read_ty(i32___), 4); // u32, already aligned
     assert_eq!(read_ty(double), 6); // f64, NOT already aligned, skips up to offset 6
+}
+
+fn fields_to_ts(fields: Vec<decode::Field>) -> Vec<AuxField> {
+    fields.iter().map(field_to_ts).collect()
+}
+
+fn field_to_ts(field: &decode::Field) -> AuxField {
+    todo!();
 }

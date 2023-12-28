@@ -1,8 +1,8 @@
 use crate::descriptor::VectorKind;
 use crate::intrinsic::Intrinsic;
 use crate::wit::{
-    Adapter, AdapterId, AdapterJsImportKind, AdapterType, AuxExportedMethodKind, AuxReceiverKind,
-    AuxValue,
+    Adapter, AdapterId, AdapterJsImportKind, AdapterType, AuxExportedMethodKind, AuxField,
+    AuxReceiverKind, AuxValue, AuxVariant,
 };
 use crate::wit::{AdapterKind, Instruction, InstructionData};
 use crate::wit::{AuxEnum, AuxExport, AuxExportKind, AuxImport, AuxStruct};
@@ -3664,34 +3664,34 @@ impl<'a> Context<'a> {
             self.typescript
                 .push_str(&format!("export enum {} {{", enum_.name));
         }
-        for (name, value, comments) in enum_.variants.iter() {
-            let variant_docs = if comments.is_empty() {
-                String::new()
-            } else {
-                format_doc_comments(comments, None)
-            };
-            if !variant_docs.is_empty() {
-                variants.push('\n');
-                variants.push_str(&variant_docs);
-            }
-            variants.push_str(&format!("{}:{},", name, value));
-            variants.push_str(&format!("\"{}\":\"{}\",", value, name));
-            if enum_.generate_typescript {
-                self.typescript.push('\n');
-                if !variant_docs.is_empty() {
-                    self.typescript.push_str(&variant_docs);
-                }
-                self.typescript.push_str(&format!("  {name} = {value},"));
-            }
-        }
-        if enum_.generate_typescript {
-            self.typescript.push_str("\n}\n");
-        }
-        self.export(
-            &enum_.name,
-            &format!("Object.freeze({{ {} }})", variants),
-            Some(&docs),
-        )?;
+        // for (name, value, comments) in enum_.variants.iter() {
+        //     let variant_docs = if comments.is_empty() {
+        //         String::new()
+        //     } else {
+        //         format_doc_comments(comments, None)
+        //     };
+        //     if !variant_docs.is_empty() {
+        //         variants.push('\n');
+        //         variants.push_str(&variant_docs);
+        //     }
+        //     variants.push_str(&format!("{}:{},", name, value));
+        //     variants.push_str(&format!("\"{}\":\"{}\",", value, name));
+        //     if enum_.generate_typescript {
+        //         self.typescript.push('\n');
+        //         if !variant_docs.is_empty() {
+        //             self.typescript.push_str(&variant_docs);
+        //         }
+        //         self.typescript.push_str(&format!("  {name} = {value},"));
+        //     }
+        // }
+        // if enum_.generate_typescript {
+        //     self.typescript.push_str("\n}\n");
+        // }
+        // self.export(
+        //     &enum_.name,
+        //     &format!("Object.freeze({{ {} }})", variants),
+        //     Some(&docs),
+        // )?;
 
         Ok(())
     }
@@ -3954,6 +3954,285 @@ impl<'a> Context<'a> {
         self.stack_pointer_shim_injected = true;
 
         Ok(())
+    }
+}
+
+/// # Generate enum js bindings
+///
+/// To make code testable, the enum related code is extracted to this module.
+///
+/// Enums in rust is generated as two js objects and (optionally) a typescript type
+/// For example, the Rust enum:
+///
+/// ```Rust
+/// #[wasm_bindgen]
+/// pub enum MyEnum {
+///    A = 0,
+///    B(i32) = 1,
+///    D{x: i32, y: i32} = 4
+/// }
+/// ```
+///
+/// generates the ts code:
+///
+/// ```TypeScript
+/// type MyEnum =
+///   | { tag: 0 }
+///   | { tag: 1; value: { 0: number } }
+///   | { tag: 3; value: { x: number; y: number } };
+/// const MyEnum_Tags = Object.freeze({ A: 0, B: 1, D: 3 });
+/// const MyEnum = Object.freeze({
+///   A: Object.freeze({ tag: MyEnum_Tags.A }), // just a value, like currently for C-style enums
+///   B: (v: number) => {
+///     return {
+///       tag: MyEnum_Tags.B,
+///       value: {
+///         0: v,
+///       },
+///     };
+///   },
+///   D: (arg: { x: number; y: number }) => {
+///     return {
+///       tag: MyEnum_Tags.D,
+///       value: arg,
+///     };
+///   },
+/// });
+///
+/// ```
+///
+/// This allows us to write codes like:
+///
+/// ```TypeScript
+/// const a: MyEnum = MyEnum.A;
+/// const b: MyEnum = MyEnum.B(42);
+/// const c: MyEnum = MyEnum.D({ x: 1, y: 2 });
+///
+/// const f = (d: MyEnum) => {
+///   switch (d.tag) {
+///     case MyEnum_Tags.A:
+///       break;
+///     case MyEnum_Tags.B:
+///       console.log(d.value[0]);
+///       break;
+///     default:
+///       break;
+///   }
+/// };
+/// ```
+///
+/// And typescript can provide hint prefectly.
+mod gen_enum {
+
+    use super::*;
+
+    #[test]
+    fn gen_enum_test() {
+        let aux_enum = AuxEnum {
+            name: "MyEnum".to_string(),
+            comments: "My rust enum".to_string(),
+            variants: vec![
+                AuxVariant {
+                    discriminant: 0,
+                    fields: None,
+                    name: "A".to_string(),
+                },
+                AuxVariant {
+                    discriminant: 1,
+                    fields: Some(vec![AuxField {
+                        key: "0".to_string(),
+                        value_type: "number".to_string(),
+                    }]),
+                    name: "B".to_string(),
+                },
+                AuxVariant {
+                    discriminant: 3,
+                    fields: Some(vec![
+                        AuxField {
+                            key: "x".to_string(),
+                            value_type: "number".to_string(),
+                        },
+                        AuxField {
+                            key: "y".to_string(),
+                            value_type: "number".to_string(),
+                        },
+                    ]),
+                    name: "D".to_string(),
+                },
+            ],
+            generate_typescript: true,
+        };
+        println!("{}", gen_enum_ty(&aux_enum));
+        println!("{}", gen_tags(&aux_enum));
+        println!("{}", gen_ctors(&aux_enum));
+    }
+
+    /// Generate type information:
+    ///
+    /// ```TypeScript
+    /// type <enum name> =
+    ///   | { tag: <discriminant> }
+    ///   | { tag: <discriminant>; value: { 0: number } } // unnamed fields
+    ///   | { tag: <discriminant>; value: { x: number; y: number } }; // named fields
+    ///
+    fn gen_enum_ty(enum_: &AuxEnum) -> String {
+        format!(
+            "type {} =\n{}",
+            enum_.name,
+            &gen_variants_ty(&enum_.variants)
+        )
+    }
+
+    fn gen_variants_ty(variants: &Vec<AuxVariant>) -> String {
+        variants
+            .iter()
+            .map(gen_variant_ty)
+            .collect::<Vec<String>>()
+            .concat()
+    }
+
+    fn gen_variant_ty(variant: &AuxVariant) -> String {
+        format!(
+            "    | {{ tag: {}; {} }}\n",
+            variant.discriminant,
+            match variant.fields {
+                Some(ref s) => ["value: ", &gen_fields_ty(s)].concat(),
+                None => "".to_string(),
+            }
+        )
+    }
+
+    fn gen_fields_ty(fields: &[AuxField]) -> String {
+        format!(
+            "{{ {} }}",
+            fields
+                .iter()
+                .map(|f| { format!("{}: {}", f.key, f.value_type) })
+                .collect::<Vec<String>>()
+                .join(", ")
+        )
+    }
+
+    /// Generate Tag -> Discriminant mapping
+    /// ```TypeScript
+    /// const <enum name>_Tags = Object.freeze({ (tag: discriminant)* });
+    /// ```
+    fn gen_tags(enum_: &AuxEnum) -> String {
+        format!(
+            "const {}_Tags = Object.freeze({{ {} }});\n",
+            &enum_.name,
+            enum_
+                .variants
+                .iter()
+                .map(|variant| { format!("{}: {}", &variant.name, &variant.discriminant) })
+                .collect::<Vec<String>>()
+                .join(", ")
+        )
+    }
+
+    /// Generate enum constructors
+    ///
+    /// const <enum name> = Object.freeze({
+    ///   <C style variant>: Object.freeze({ <name>: <enum name>_Tags.<name> }),
+    fn gen_ctors(enum_: &AuxEnum) -> String {
+        format!(
+            "const {} = Object.freeze({{\n{}\n}});\n",
+            &enum_.name,
+            gen_variants_ctors(&enum_.variants, &enum_.name)
+        )
+    }
+
+    fn gen_variants_ctors(variants: &Vec<AuxVariant>, enum_name: &str) -> String {
+        variants
+            .iter()
+            .map(|v| gen_variant_ctor(v, enum_name))
+            .collect::<Vec<String>>()
+            .join(",\n")
+    }
+
+    fn gen_variant_ctor(variant: &AuxVariant, enum_name: &str) -> String {
+        match variant.fields {
+            None => gen_c_enum_ctor(variant, enum_name),
+            Some(ref fields) => gen_rust_enum_ctor(fields, enum_name, &variant.name),
+        }
+    }
+
+    ///   <C style variant>: Object.freeze({ <name>: <enum name>_Tags.<name> }),
+    fn gen_c_enum_ctor(variant: &AuxVariant, enum_name: &str) -> String {
+        format!(
+            "   {}: Object.freeze({{ tag: {}_Tags.{0} }})",
+            &variant.name, enum_name
+        )
+    }
+
+    ///   <tuple like variant>: ((<tuple arg>: <type>,)*) => {
+    ///     return {
+    ///       tag: <enum name>_Tags.<name>,
+    ///       value: {
+    ///         (<tuple index>: <tuple arg>,)*
+    ///       },
+    ///     };
+    ///   },
+    ///   <struct like variant>: (arg: <struct fields>) => {
+    ///     return {
+    ///       tag: <enum name>_Tags.<name>,
+    ///       value: arg,
+    ///     };
+    ///   },
+    /// });
+    fn gen_rust_enum_ctor(fields: &[AuxField], enum_name: &str, variant_name: &str) -> String {
+        let is_tuple_field = |field: &AuxField| field.key.starts_with('0');
+        match is_tuple_field(&fields[0]) {
+            true => gen_tuple_ctor(fields, enum_name, variant_name),
+            false => gen_struct_ctor(fields, enum_name, variant_name),
+        }
+    }
+
+    fn gen_struct_ctor(fields: &[AuxField], enum_name: &str, variant_name: &str) -> String {
+        format!(
+            "   {}: (arg: {}) => {{
+        return {{
+            tag: {}_Tags.{0},
+            value: arg,
+        }};
+    }}",
+            variant_name,
+            gen_fields_ty(fields),
+            enum_name
+        )
+    }
+
+    fn gen_tuple_ctor(fields: &[AuxField], enum_name: &str, variant_name: &str) -> String {
+        format!(
+            "   {}: ({}) => {{
+        return {{
+            tag: {}_Tags.{0},
+            value: {{
+                {}
+            }}
+        }}
+    }}",
+            variant_name,
+            gen_tuple_ctor_arg(fields),
+            enum_name,
+            gen_tuple_ctor_value(fields)
+        )
+    }
+
+    fn gen_tuple_ctor_arg(fields: &[AuxField]) -> String {
+        fields
+            .iter()
+            .map(|field| format!("arg{}: {}", &field.key, &field.value_type))
+            .collect::<Vec<String>>()
+            .join(", ")
+    }
+
+    fn gen_tuple_ctor_value(fields: &[AuxField]) -> String {
+        fields
+            .iter()
+            .map(|field| format!("{}: arg{0}", &field.key))
+            .collect::<Vec<String>>()
+            .join(", ")
     }
 }
 

@@ -165,11 +165,23 @@ pub struct AuxEnum {
     pub name: String,
     /// The copied Rust comments to forward to JS
     pub comments: String,
-    /// A list of variants with their name, value and comments
-    /// and whether typescript bindings should be generated for each variant
-    pub variants: Vec<(String, u32, String)>,
+    /// A list of variants.
+    pub variants: Vec<AuxVariant>,
     /// Whether typescript bindings should be generated for this enum.
     pub generate_typescript: bool,
+}
+
+#[derive(Debug)]
+pub struct AuxVariant {
+    pub discriminant: u32,
+    pub fields: Option<Vec<AuxField>>,
+    pub name: String,
+}
+
+#[derive(Debug)]
+pub struct AuxField {
+    pub key: String,
+    pub value_type: String,
 }
 
 #[derive(Debug)]
